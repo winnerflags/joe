@@ -37,8 +37,22 @@ docker run -p 8501:8501 cuigg-reporting
 ```
 
 Then open http://localhost:8501. Server settings (headless mode, port, upload
-limits) live in `.streamlit/config.toml`. To point the sidebar back-link at a
-deployed hub, pass `-e HUB_URL=https://your-hub.example`.
+limits) live in `.streamlit/config.toml`.
+
+## Configuration
+
+Copy `.env.example` to `.env` and fill in. The Report Maker links **two ways**
+with the WinnerFlags × CUIGG app hub:
+
+| Variable | Set on | Purpose | Default |
+|----------|--------|---------|---------|
+| `HUB_URL` | this app | Where the sidebar "← WinnerFlags × CUIGG hub" link points. | `http://localhost:3000` |
+| `NEXT_PUBLIC_REPORT_MAKER_URL` | the hub (Next.js app) | The app URL the hub's "Report Maker" card opens. **Point this at this app's deployed Streamlit URL.** | `http://localhost:8501` |
+
+So to wire the hub to this deployed tool, set `NEXT_PUBLIC_REPORT_MAKER_URL`
+on the hub to this app's URL (e.g. `https://reporting.councils.example`), and
+set `HUB_URL` here back to the hub. With Docker, pass it through:
+`docker run -p 8501:8501 -e HUB_URL=https://your-hub.example cuigg-reporting`.
 
 ## What it does
 
