@@ -1,0 +1,13 @@
+# Saved client branding profiles and uploaded logos (runtime data)
+profiles/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Generated reports
+*.docx
+cleaned_data.csv
