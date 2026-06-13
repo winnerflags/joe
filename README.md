@@ -54,6 +54,35 @@ on the hub to this app's URL (e.g. `https://reporting.councils.example`), and
 set `HUB_URL` here back to the hub. With Docker, pass it through:
 `docker run -p 8501:8501 -e HUB_URL=https://your-hub.example cuigg-reporting`.
 
+## CSV → Google Docs report maker
+
+`csv_to_gdoc.py` is a standalone CLI that builds the **same branded report** and
+uploads it to Google Drive as a native, editable **Google Doc**. It reuses the
+local DOCX builder, then has Drive convert the `.docx` into a Google Doc — so the
+branded cover, charts, sentiment and trends all carry over.
+
+```bash
+pip install -r requirements.txt -r requirements-gdocs.txt
+
+# Build and upload (opens a browser to sign in the first time):
+python csv_to_gdoc.py sample_data/sample_event.csv \
+    --client-name "Example Council" --credentials credentials.json
+
+# Build the DOCX only, skip Google:
+python csv_to_gdoc.py event1.csv event2.csv --client-name "City Council" \
+    --docx-out report.docx --no-upload
+```
+
+**One-off Google setup:** in the Google Cloud console, enable the **Google Drive
+API**, create an **OAuth 2.0 Client ID** of type *Desktop app*, download the JSON
+and pass it via `--credentials` (default `credentials.json`). The first run opens
+a browser for sign-in (use `--no-browser` on headless hosts); the authorisation
+is cached to `token.json` for later runs. The tool requests only the
+`drive.file` scope, and the Doc is created in the signed-in user's own Drive
+(use `--folder-id` to target a specific folder). Multiple CSVs are combined into
+one report exactly as the Streamlit app does. Saved branding profiles work too
+via `--profile <slug>`.
+
 ## What it does
 
 1. **Upload & cleaning** — one or many CSVs. Handles UTF-8 / Windows-1252,

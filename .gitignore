@@ -11,3 +11,8 @@ venv/
 # Generated reports
 *.docx
 cleaned_data.csv
+
+# Google OAuth client secret and cached user token (never commit)
+credentials.json
+token.json
+.env
