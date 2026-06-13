@@ -1,61 +1,147 @@
-# WinnerFlags × CUIGG
+# CUIGG Reporting Tool
 
-This repository hosts two **separate apps** behind a small **app-store hub**:
+A local, deterministic reporting tool for council survey exports from the CUIGG
+platform. Upload one or more CSV exports and get cleaned data, interactive
+filters and charts, plain-language takeaways, indicative sentiment on free-text
+answers, cross-event trends, and a **branded DOCX report** — replacing the
+manual screenshot-into-Word workflow.
 
-| App | Stack | Location | Run |
-|-----|-------|----------|-----|
-| **App Hub** | Next.js | `src/app/page.tsx` (route `/`) | part of `npm run dev` |
-| **Ordering System** | Next.js | `src/app/(order)/…` (route `/order`) | part of `npm run dev` |
-| **Report Maker** | Python / Streamlit | `reporting/` | `cd reporting && streamlit run app.py` |
+Everything runs **locally**. No external APIs, no LLM calls. Given the same
+input the output is identical.
 
-The hub at `/` is a branded **WinnerFlags × CUIGG** launcher: it shows a card per
-app and links out to each. The two apps are independent — each runs on its own
-and keeps its own menu/functions. They are linked only by the hub.
-
-## Ordering System + Hub (Next.js)
+## Quick start
 
 ```bash
-npm install
-npm run dev
-```
-
-Open http://localhost:3000:
-- `/` — the app hub (choose an app)
-- `/order` — the ordering funnel (run size → artwork → details → review → payment)
-- `/sample`, `/enquiry`, `/order-success` — supporting pages
-
-### Routing structure
-
-The ordering app lives inside a route group `(order)/` so it can own the
-`OrderProvider` context and the order-step chrome without affecting the hub:
-
-```
-src/app/
-  layout.tsx                       # root: html/body/fonts only (no OrderProvider)
-  page.tsx                         # the app hub  (route: /)
-  (order)/
-    layout.tsx                     # OrderProvider + ordering metadata
-    order/
-      page.tsx                     # ordering landing (route: /order)
-      step/
-        layout.tsx                 # Header + ProgressIndicator chrome
-        [step]/page.tsx            # steps (route: /order/step/N)
-  sample/ · enquiry/ · order-success/
-```
-
-## Report Maker (Streamlit)
-
-A standalone, local survey-reporting tool. See `reporting/README.md` for details.
-
-```bash
-cd reporting
 pip install -r requirements.txt
-streamlit run app.py            # serves on http://localhost:8501
+streamlit run app.py
 ```
+
+Then open the URL Streamlit prints (default http://localhost:8501) and upload a
+CSV in the sidebar. A sample is provided at `sample_data/sample_event.csv`.
+
+> This repository is a **standalone deployment** of the Report Maker — the tool
+> is fully independent and needs no other service to run. It can optionally link
+> back to the "WinnerFlags × CUIGG" app-store hub: set `HUB_URL` (default
+> `http://localhost:3000`) to control where the "← WinnerFlags × CUIGG hub" link
+> in the sidebar points.
+
+## Deployment
+
+The tool ships with a `Dockerfile` for container deployment. The image pins
+`kaleido==0.2.1`, which bundles its own Chromium, so offline PNG/DOCX export
+works without a system Chrome install.
+
+```bash
+docker build -t cuigg-reporting .
+docker run -p 8501:8501 cuigg-reporting
+```
+
+Then open http://localhost:8501. Server settings (headless mode, port, upload
+limits) live in `.streamlit/config.toml`.
 
 ## Configuration
 
-Copy `.env.example` to `.env.local` and fill in. The hub's **Report Maker**
-card opens `NEXT_PUBLIC_REPORT_MAKER_URL` (default `http://localhost:8501`); set
-it to the deployed Report Maker URL in production. The Report Maker can link
-back to the hub via its own `HUB_URL` env var (default `http://localhost:3000`).
+Copy `.env.example` to `.env` and fill in. The Report Maker links **two ways**
+with the WinnerFlags × CUIGG app hub:
+
+| Variable | Set on | Purpose | Default |
+|----------|--------|---------|---------|
+| `HUB_URL` | this app | Where the sidebar "← WinnerFlags × CUIGG hub" link points. | `http://localhost:3000` |
+| `NEXT_PUBLIC_REPORT_MAKER_URL` | the hub (Next.js app) | The app URL the hub's "Report Maker" card opens. **Point this at this app's deployed Streamlit URL.** | `http://localhost:8501` |
+
+So to wire the hub to this deployed tool, set `NEXT_PUBLIC_REPORT_MAKER_URL`
+on the hub to this app's URL (e.g. `https://reporting.councils.example`), and
+set `HUB_URL` here back to the hub. With Docker, pass it through:
+`docker run -p 8501:8501 -e HUB_URL=https://your-hub.example cuigg-reporting`.
+
+## CSV → Google Docs report maker
+
+`csv_to_gdoc.py` is a standalone CLI that builds the **same branded report** and
+uploads it to Google Drive as a native, editable **Google Doc**. It reuses the
+local DOCX builder, then has Drive convert the `.docx` into a Google Doc — so the
+branded cover, charts, sentiment and trends all carry over.
+
+```bash
+pip install -r requirements.txt -r requirements-gdocs.txt
+
+# Build and upload (opens a browser to sign in the first time):
+python csv_to_gdoc.py sample_data/sample_event.csv \
+    --client-name "Example Council" --credentials credentials.json
+
+# Build the DOCX only, skip Google:
+python csv_to_gdoc.py event1.csv event2.csv --client-name "City Council" \
+    --docx-out report.docx --no-upload
+```
+
+**One-off Google setup:** in the Google Cloud console, enable the **Google Drive
+API**, create an **OAuth 2.0 Client ID** of type *Desktop app*, download the JSON
+and pass it via `--credentials` (default `credentials.json`). The first run opens
+a browser for sign-in (use `--no-browser` on headless hosts); the authorisation
+is cached to `token.json` for later runs. The tool requests only the
+`drive.file` scope, and the Doc is created in the signed-in user's own Drive
+(use `--folder-id` to target a specific folder). Multiple CSVs are combined into
+one report exactly as the Streamlit app does. Saved branding profiles work too
+via `--profile <slug>`.
+
+## What it does
+
+1. **Upload & cleaning** — one or many CSVs. Handles UTF-8 / Windows-1252,
+   comma/semicolon/tab delimiters. Auto-cleans duplicates, empty rows/columns,
+   whitespace, inconsistent casing, corrupted characters, and normalises dates
+   to ISO-8601 (day-first). **Every action is listed; nothing is dropped
+   silently.** CUIGG's long `Date, Event, Bundle, Question, Answer` exports are
+   automatically pivoted into one row per submission.
+2. **Filtering** — auto-generated sidebar filters by column type (multiselect,
+   range slider, date range, event selector), live row count, and a reset
+   button.
+3. **Charts** — bar, line, pie, stacked bar, histogram with a count/sum/mean
+   measure and a sensible default per column type. Every chart is downloadable
+   as PNG.
+4. **Indicative sentiment** — VADER classification (positive/neutral/negative)
+   per free-text question, with a distribution chart, representative verbatim
+   quotes (emails/phone numbers stripped), and top keyword themes. Labelled
+   everywhere as *“Indicative sentiment (automated)”*.
+5. **Trends** (multi-event) — events are aligned on **exact** column names.
+   Response volume per event, any metric over time, and sentiment trends.
+6. **Takeaways & future questions** — 2–4 deterministic, rule-based insights per
+   chart, plus a survey-design section flagging high skip rates, dominated
+   categoricals, and recurring free-text themes lacking a structured question.
+   Both are editable before export.
+7. **Branded DOCX export** — upload a logo, set brand hex colours, client name
+   and footer (saved as reusable JSON profiles). Brand colours drive the chart
+   palettes. The report has a branded cover, per-question sections, a trends
+   section, future questions, and a data-quality appendix. Cleaned CSV export is
+   also provided.
+
+## Project structure
+
+| File | Responsibility |
+|------|----------------|
+| `app.py` | Streamlit UI and orchestration |
+| `cleaning.py` | Robust CSV reading, cleaning, long→wide pivot, type detection |
+| `charts.py` | Plotly charts, brand palettes, PNG export |
+| `sentiment.py` | VADER sentiment, PII scrubbing, keyword themes |
+| `trends.py` | Cross-event alignment and trend charts |
+| `insights.py` | Rule-based takeaways and future-question suggestions |
+| `report.py` | Branded DOCX generation and client-profile persistence |
+| `tests/` | Tests for cleaning and sentiment |
+
+## Testing
+
+```bash
+cd reporting
+pip install pytest
+pytest tests/ -q
+```
+
+## Notes
+
+- `kaleido==0.2.1` is pinned because it bundles its own Chromium, so static PNG
+  export (for downloads and the DOCX) works fully offline. Newer Kaleido
+  versions require a system Chrome install.
+- `vaderSentiment` ships its lexicon in the package, so sentiment needs no
+  downloads or network access.
+- Client profiles and uploaded logos are stored under `reporting/profiles/`
+  (git-ignored).
+- Malformed CSVs produce a clear, user-facing error message — never a stack
+  trace.

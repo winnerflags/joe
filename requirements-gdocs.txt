@@ -1,0 +1,6 @@
+# Optional extras for the CSV → Google Docs report maker (csv_to_gdoc.py).
+# The core Streamlit Report Maker stays fully offline and does NOT need these.
+google-api-python-client>=2.0
+google-auth>=2.0
+google-auth-oauthlib>=1.0
+google-auth-httplib2>=0.2

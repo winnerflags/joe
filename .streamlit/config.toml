@@ -1,0 +1,17 @@
+# Server settings for the CUIGG Reporting Tool.
+# Tuned for container / council-network deployment.
+
+[server]
+headless = true
+address = "0.0.0.0"
+port = 8501
+# Council survey exports can be large; allow generous uploads (MB).
+maxUploadSize = 200
+enableXsrfProtection = true
+enableCORS = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
