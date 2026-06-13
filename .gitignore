@@ -16,3 +16,22 @@ cleaned_data.csv
 credentials.json
 token.json
 .env
+
+# Next.js / Node (hub + ordering app at repo root)
+/node_modules
+/.next/
+/out/
+/build
+/coverage
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+.DS_Store
+*.pem
+npm-debug.log*
+.env*
+!.env.example
+
+# Uploaded files (runtime)
+public/uploads/*
+!public/uploads/.gitkeep
