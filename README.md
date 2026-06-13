@@ -1,4 +1,63 @@
-# CUIGG Reporting Tool
+# WinnerFlags × CUIGG
+
+This repository hosts **two independent apps** that share one repo root:
+
+| App | Stack | Entry point | Run |
+|-----|-------|-------------|-----|
+| **App Hub + Ordering System** | Next.js | `src/app/` | `npm run dev` → http://localhost:3000 |
+| **Report Maker** | Python / Streamlit | `app.py` | `streamlit run app.py` → http://localhost:8501 |
+
+The Next.js app provides a branded **WinnerFlags × CUIGG** hub at `/` (a launcher
+card per app) and the **ordering funnel** at `/order`. The **Report Maker** is a
+standalone Streamlit tool for council survey reporting. The two are fully
+independent — each runs on its own — and are linked only by the hub. Their files
+coexist at the repo root without interfering: the Next.js build only looks at
+`src/`, and the Streamlit app only at the Python modules.
+
+---
+
+## Next.js app (Hub + Ordering System)
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:3000:
+- `/` — the app hub (choose an app)
+- `/order` — the ordering funnel (run size → artwork → details → review → payment)
+- `/sample`, `/enquiry`, `/order-success` — supporting pages
+
+### Routing structure
+
+The ordering app lives inside a route group `(order)/` so it can own the
+`OrderProvider` context and the order-step chrome without affecting the hub:
+
+```
+src/app/
+  layout.tsx                       # root: html/body/fonts only (no OrderProvider)
+  page.tsx                         # the app hub  (route: /)
+  (order)/
+    layout.tsx                     # OrderProvider + ordering metadata
+    order/
+      page.tsx                     # ordering landing (route: /order)
+      step/
+        layout.tsx                 # Header + ProgressIndicator chrome
+        [step]/page.tsx            # steps (route: /order/step/N)
+  api/                             # checkout, enquiry, upload route handlers
+  sample/ · enquiry/ · order-success/
+```
+
+### Build
+
+```bash
+npm run build      # production build (Next.js / Turbopack)
+npm start          # serve the production build
+```
+
+---
+
+# CUIGG Reporting Tool (Report Maker)
 
 A local, deterministic reporting tool for council survey exports from the CUIGG
 platform. Upload one or more CSV exports and get cleaned data, interactive
@@ -19,11 +78,9 @@ streamlit run app.py
 Then open the URL Streamlit prints (default http://localhost:8501) and upload a
 CSV in the sidebar. A sample is provided at `sample_data/sample_event.csv`.
 
-> This repository is a **standalone deployment** of the Report Maker — the tool
-> is fully independent and needs no other service to run. It can optionally link
-> back to the "WinnerFlags × CUIGG" app-store hub: set `HUB_URL` (default
-> `http://localhost:3000`) to control where the "← WinnerFlags × CUIGG hub" link
-> in the sidebar points.
+> The Report Maker links back to the hub via `HUB_URL` (default
+> `http://localhost:3000`), which controls where the "← WinnerFlags × CUIGG hub"
+> link in the sidebar points.
 
 ## Deployment
 
@@ -46,13 +103,13 @@ with the WinnerFlags × CUIGG app hub:
 
 | Variable | Set on | Purpose | Default |
 |----------|--------|---------|---------|
-| `HUB_URL` | this app | Where the sidebar "← WinnerFlags × CUIGG hub" link points. | `http://localhost:3000` |
-| `NEXT_PUBLIC_REPORT_MAKER_URL` | the hub (Next.js app) | The app URL the hub's "Report Maker" card opens. **Point this at this app's deployed Streamlit URL.** | `http://localhost:8501` |
+| `HUB_URL` | the Report Maker | Where the sidebar "← WinnerFlags × CUIGG hub" link points. | `http://localhost:3000` |
+| `NEXT_PUBLIC_REPORT_MAKER_URL` | the hub (Next.js app) | The app URL the hub's "Report Maker" card opens. **Point this at the deployed Streamlit URL.** | `http://localhost:8501` |
 
-So to wire the hub to this deployed tool, set `NEXT_PUBLIC_REPORT_MAKER_URL`
-on the hub to this app's URL (e.g. `https://reporting.councils.example`), and
-set `HUB_URL` here back to the hub. With Docker, pass it through:
-`docker run -p 8501:8501 -e HUB_URL=https://your-hub.example cuigg-reporting`.
+So to wire the hub to a deployed Report Maker, set `NEXT_PUBLIC_REPORT_MAKER_URL`
+on the hub to the Streamlit app's URL (e.g. `https://reporting.councils.example`),
+and set `HUB_URL` on the Report Maker back to the hub. With Docker, pass it
+through: `docker run -p 8501:8501 -e HUB_URL=https://your-hub.example cuigg-reporting`.
 
 ## CSV → Google Docs report maker
 
@@ -113,7 +170,7 @@ via `--profile <slug>`.
    section, future questions, and a data-quality appendix. Cleaned CSV export is
    also provided.
 
-## Project structure
+## Report Maker structure
 
 | File | Responsibility |
 |------|----------------|
@@ -124,12 +181,14 @@ via `--profile <slug>`.
 | `trends.py` | Cross-event alignment and trend charts |
 | `insights.py` | Rule-based takeaways and future-question suggestions |
 | `report.py` | Branded DOCX generation and client-profile persistence |
-| `tests/` | Tests for cleaning and sentiment |
+| `report_builder.py` | Headless report assembly (shared by the app and the Google Docs CLI) |
+| `gdocs.py` | Google Drive OAuth + upload/convert to a native Google Doc |
+| `csv_to_gdoc.py` | CSV → Google Docs CLI |
+| `tests/` | Tests for cleaning, sentiment, and the headless report builder |
 
 ## Testing
 
 ```bash
-cd reporting
 pip install pytest
 pytest tests/ -q
 ```
@@ -141,7 +200,8 @@ pytest tests/ -q
   versions require a system Chrome install.
 - `vaderSentiment` ships its lexicon in the package, so sentiment needs no
   downloads or network access.
-- Client profiles and uploaded logos are stored under `reporting/profiles/`
-  (git-ignored).
+- Client profiles and uploaded logos are stored under `profiles/` (git-ignored).
 - Malformed CSVs produce a clear, user-facing error message — never a stack
   trace.
+- Google OAuth files (`credentials.json`, `token.json`) and `.env` are
+  git-ignored — never commit them.
